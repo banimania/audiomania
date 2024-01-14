@@ -11,7 +11,7 @@ void clearLine(WINDOW* win, int line) {
   int w = getmaxx(win);
 
   std::string clear;
-  for (int i = 0; i < w - 1; i++) clear += " ";
+  for (int i = 0; i < w - 2; i++) clear += " ";
 
   mvwprintw(win, line, 1, clear.c_str());
 }
