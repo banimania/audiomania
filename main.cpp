@@ -1,6 +1,12 @@
+#include <SDL2/SDL_audio.h>
+#include <SDL2/SDL_quit.h>
+#include <SDL2/SDL_timer.h>
+#include <filesystem>
 #include <ncurses.h>
 #include <string>
 #include <vector>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_mixer.h>
 #include "include/window_util.hpp"
 #include "include/track.hpp"
 
@@ -109,11 +115,25 @@ void draw_sound_visualizer(WINDOW* window) {
   refresh();
 }
 
+void load_music(std::vector<Track*>* tracks) {
+  for (const auto &m : std::filesystem::directory_iterator("music")) {
+    std::string name = std::string(m.path());
+    name = name.substr(name.find("/") + 1, name.length());
+    name = name.substr(0, name.find("."));
+    tracks->push_back(new Track(name, "Test Artist", m.path(), 254));
+  }
+}
+
 int main(int argc, char* argv[]) {
+  SDL_Init(SDL_INIT_AUDIO);
+  Mix_Init(MIX_INIT_MP3);
+  Mix_OpenAudio(22050, AUDIO_S16SYS, 2, 4096);
+  
+  Mix_Music* music;
+
   Track* currentTrack = NULL;
   std::vector<Track*> tracks;
-  tracks.push_back(new Track("Track a", "author1", "pstra.mp3", 253));
-  tracks.push_back(new Track("Track b", "author2", "pstra.mp3", 318));
+  load_music(&tracks);
 
   int selectedOption = 0;
 
@@ -151,6 +171,8 @@ int main(int argc, char* argv[]) {
         break;
       case 10:
         currentTrack = tracks[selectedOption];
+        music = Mix_LoadMUS(currentTrack->path.c_str());
+        Mix_PlayMusic(music, 1);
         break;
     }
     if (selectedOption < 0) selectedOption = tracks.size() - 1;
@@ -162,6 +184,9 @@ int main(int argc, char* argv[]) {
     drawTitle();
   };
 
+  Mix_FreeMusic(music);
+  SDL_Quit();
+  
   endwin();
   return 0;
 }
