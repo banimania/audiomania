@@ -96,25 +96,6 @@ void draw_track_info(WINDOW* window, Track* currentTrack) {
   refresh();
 }
 
-void draw_sound_visualizer(WINDOW* window) {
-  int maxx, maxy;
-  getmaxyx(window, maxy, maxx);
-
-  refresh();
-  box(window, 0, 0);
-
-  clearWindow(window);
-
-  wattron(window, COLOR_PAIR(2));
-  wattron(window, A_BOLD);
-  mvwprintw(window, 0, maxx / 2 - std::string(" Sound Visualizer ").size() / 2, " Sound Visualizer ");
-  wattroff(window, A_BOLD);
-  wattroff(window, COLOR_PAIR(2));
-
-  wrefresh(window);
-  refresh();
-}
-
 void load_music(std::vector<Track*>* tracks) {
   for (const auto &m : std::filesystem::directory_iterator("music")) {
     std::string name = std::string(m.path());
@@ -156,9 +137,8 @@ int main(int argc, char* argv[]) {
   --auxy;
   auxy /= 3;
 
-  WINDOW* winTrackSel = newwin(2 * auxy, (auxx / 2), 1, 0);
+  WINDOW* winTrackSel = newwin(2 * auxy, auxx, 1, 0);
   WINDOW* winTrack = newwin(auxy, 0, 2 * auxy + 1, 0);
-  WINDOW* winSound = newwin(2 * auxy, (auxx / 2), 1, (auxx / 2));
 
   char ch;
   while ((ch = getch()) != 27) {
@@ -180,7 +160,6 @@ int main(int argc, char* argv[]) {
 
     draw_track_select(winTrackSel, tracks, selectedOption);
     draw_track_info(winTrack, currentTrack);
-    draw_sound_visualizer(winSound);
     drawTitle();
   };
 
