@@ -80,12 +80,18 @@ void draw_track_info(WINDOW* window, Track* currentTrack) {
   wattroff(window, A_BOLD);
   wattroff(window, COLOR_PAIR(2));
 
+  std::string enter = " [Enter] Select ";
+  
   if (!currentTrack) {
     wattron(window, COLOR_PAIR(4));
     wattron(window, A_BOLD);
-    mvwprintw(window, maxy / 2 - 1, maxx / 2 - std::string("No track selected yet!").size() / 2, "No track selected yet!");
+    mvwprintw(window, maxy / 2, maxx / 2 - std::string("No track selected yet!").size() / 2, "No track selected yet!");
     wattroff(window, A_BOLD);
     wattroff(window, COLOR_PAIR(4));
+    
+    wattron(window, COLOR_PAIR(3));
+    mvwprintw(window, (int) (maxy - maxy / 3.0f) + 1, maxx / 2.0f - strlen(enter.c_str()) / 2.0f, enter.c_str());
+    wattroff(window, COLOR_PAIR(3));
   } else {
     wattron(window, COLOR_PAIR(1));
     wattron(window, A_BOLD);
@@ -106,7 +112,6 @@ void draw_track_info(WINDOW* window, Track* currentTrack) {
     mvwprintw(window, maxy - maxy / 3.0f - 1, maxx / 6.0f, bar.c_str()); 
     mvwprintw(window, maxy - maxy / 3.0f - 1, maxx / 6.0f + 1 + (percentage * (maxx - maxx / 3.0f - 2)), "|");
   
-    std::string enter = " [Enter] Select ";
     std::string space = currentTrack->isPlaying ? " [Space] Pause " : " [Space] Resume ";
 
     wattron(window, COLOR_PAIR(3));
