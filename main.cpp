@@ -4,11 +4,16 @@
 #include <filesystem>
 #include <ncurses.h>
 #include <string>
+#include <taglib/audioproperties.h>
 #include <vector>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_mixer.h>
 #include "include/window_util.hpp"
 #include "include/track.hpp"
+
+#include <taglib/tag.h>
+#include <taglib/tvariant.h>
+#include <taglib/fileref.h>
 
 void drawTitle() {
   attron(COLOR_PAIR(1));
@@ -39,7 +44,7 @@ void draw_track_select(WINDOW* window, std::vector<Track*> tracks, int selectedO
     line += tracks[i]->artist;
     s = line.size();
     for (int j = 0; j < nduration - s - 1; j++) line += " ";
-    line += tracks[i]->formattedDuration();
+    line += tracks[i]->formattedDuration(tracks[i]->duration);
     s = line.size();
     for (int j = 0; j < nduration + std::string("Duration").size() - s - 1; j++) line += " ";
     s = line.size();
@@ -82,14 +87,23 @@ void draw_track_info(WINDOW* window, Track* currentTrack) {
   } else {
     wattron(window, COLOR_PAIR(1));
     wattron(window, A_BOLD);
-    std::string name = std::string("Name: " + currentTrack->name);
-    std::string artist = std::string("Artist: " + currentTrack->artist);
-    std::string duration = std::string("Duration: " + currentTrack->formattedDuration());
-    mvwprintw(window, maxy / 2 - 3, maxx / 2 - name.size() / 2, name.c_str());
-    mvwprintw(window, maxy / 2 - 2, maxx / 2 - artist.size() / 2, artist.c_str());
-    mvwprintw(window, maxy / 2 - 1, maxx / 2 - duration.size() / 2, duration.c_str());
+    std::string name = currentTrack->name + " - " + currentTrack->artist;
+    if (currentTrack->album != currentTrack->name && currentTrack->album != currentTrack->artist && !currentTrack->album.empty()) name += " - " + currentTrack->album;
+    std::string duration = std::string(currentTrack->formattedDuration(currentTrack->currentSecond) + " / " + currentTrack->formattedDuration(currentTrack->duration));
+    mvwprintw(window, maxy - maxy / 3.0f - 3, maxx / 2 - name.size() / 2, name.c_str());
+    mvwprintw(window, maxy - maxy / 3.0f - 2 , maxx / 2 - duration.size() / 2, duration.c_str());
     wattroff(window, A_BOLD);
     wattroff(window, COLOR_PAIR(1));
+
+    std::string bar = "[";
+    float percentage = (float) currentTrack->currentSecond / (float) currentTrack->duration;
+    for (int i = 0; i < maxx - maxx / 3.0f; i++) {
+      if (i == (int) (maxx - maxx / 3.0f)) bar += "]";
+      else bar += "-";
+    }
+    mvwprintw(window, maxy - maxy / 3.0f, maxx / 6.0f, bar.c_str()); 
+    mvwprintw(window, maxy - maxy / 3.0f, maxx / 6.0f + 1 + (percentage * (maxx - maxx / 3.0f)), "|");
+    currentTrack->updateTimer();
   }
 
   wrefresh(window);
@@ -101,7 +115,14 @@ void load_music(std::vector<Track*>* tracks) {
     std::string name = std::string(m.path());
     name = name.substr(name.find("/") + 1, name.length());
     name = name.substr(0, name.find("."));
-    tracks->push_back(new Track(name, "Test Artist", m.path(), 254));
+
+    TagLib::FileRef f = TagLib::FileRef(m.path().c_str());
+    if (!f.isNull() && f.tag()) {
+      TagLib::Tag* tag = f.tag();
+      TagLib::AudioProperties* properties = f.audioProperties();
+
+      tracks->push_back(new Track(tag->title().to8Bit(), tag->artist().to8Bit(), tag->album().to8Bit(), m.path(), properties->lengthInSeconds()));
+    }
   }
 }
 
@@ -135,10 +156,10 @@ int main(int argc, char* argv[]) {
   int auxx, auxy;
   getmaxyx(stdscr, auxy, auxx);
   --auxy;
-  auxy /= 3;
+  auxy /= 6;
 
-  WINDOW* winTrackSel = newwin(2 * auxy, auxx, 1, 0);
-  WINDOW* winTrack = newwin(auxy, 0, 2 * auxy + 1, 0);
+  WINDOW* winTrackSel = newwin(5 * auxy, auxx, 1, 0);
+  WINDOW* winTrack = newwin(auxy, 0, 5 * auxy + 1, 0);
 
   char ch;
   while ((ch = getch()) != 27) {
@@ -153,6 +174,7 @@ int main(int argc, char* argv[]) {
         currentTrack = tracks[selectedOption];
         music = Mix_LoadMUS(currentTrack->path.c_str());
         Mix_PlayMusic(music, 1);
+        currentTrack->startTimer();
         break;
     }
     if (selectedOption < 0) selectedOption = tracks.size() - 1;
