@@ -1,6 +1,8 @@
 #include <SDL2/SDL_audio.h>
 #include <SDL2/SDL_quit.h>
 #include <SDL2/SDL_timer.h>
+#include <clocale>
+#include <cstring>
 #include <filesystem>
 #include <ncurses.h>
 #include <string>
@@ -89,21 +91,28 @@ void draw_track_info(WINDOW* window, Track* currentTrack) {
     wattron(window, A_BOLD);
     std::string name = currentTrack->name + " - " + currentTrack->artist;
     if (currentTrack->album != currentTrack->name && currentTrack->album != currentTrack->artist && !currentTrack->album.empty()) name += " - " + currentTrack->album;
-    std::string duration = std::string(currentTrack->formattedDuration(currentTrack->currentSecond) + " / " + currentTrack->formattedDuration(currentTrack->duration));
-    mvwprintw(window, maxy - maxy / 3.0f - 3, maxx / 2 - name.size() / 2, name.c_str());
-    mvwprintw(window, maxy - maxy / 3.0f - 2 , maxx / 2 - duration.size() / 2, duration.c_str());
+    std::string duration = std::string(currentTrack->formattedDuration(Mix_GetMusicPosition(currentTrack->music)) + " / " + currentTrack->formattedDuration(currentTrack->duration));
+    mvwprintw(window, maxy - maxy / 3.0f - 4, maxx / 2 - name.size() / 2, name.c_str());
+    mvwprintw(window, maxy - maxy / 3.0f - 2, maxx / 2 - duration.size() / 2, duration.c_str());
     wattroff(window, A_BOLD);
     wattroff(window, COLOR_PAIR(1));
 
     std::string bar = "[";
-    float percentage = (float) currentTrack->currentSecond / (float) currentTrack->duration;
+    float percentage = (float) Mix_GetMusicPosition(currentTrack->music) / (float) currentTrack->duration;
     for (int i = 0; i < maxx - maxx / 3.0f; i++) {
-      if (i == (int) (maxx - maxx / 3.0f)) bar += "]";
+      if (i == (int) (maxx - maxx / 3.0f) - 1) bar += "]";
       else bar += "-";
     }
-    mvwprintw(window, maxy - maxy / 3.0f, maxx / 6.0f, bar.c_str()); 
-    mvwprintw(window, maxy - maxy / 3.0f, maxx / 6.0f + 1 + (percentage * (maxx - maxx / 3.0f)), "|");
-    currentTrack->updateTimer();
+    mvwprintw(window, maxy - maxy / 3.0f - 1, maxx / 6.0f, bar.c_str()); 
+    mvwprintw(window, maxy - maxy / 3.0f - 1, maxx / 6.0f + 1 + (percentage * (maxx - maxx / 3.0f - 2)), "|");
+  
+    std::string enter = " [Enter] Select ";
+    std::string space = currentTrack->isPlaying ? " [Space] Pause " : " [Space] Resume ";
+
+    wattron(window, COLOR_PAIR(3));
+    mvwprintw(window, (int) (maxy - maxy / 3.0f) + 1, maxx / 2.0f - strlen(enter.c_str()), enter.c_str());
+    mvwprintw(window, (int) (maxy - maxy / 3.0f) + 1, maxx / 2.0f + 1, space.c_str());
+    wattroff(window, COLOR_PAIR(3));
   }
 
   wrefresh(window);
@@ -120,18 +129,18 @@ void load_music(std::vector<Track*>* tracks) {
     if (!f.isNull() && f.tag()) {
       TagLib::Tag* tag = f.tag();
       TagLib::AudioProperties* properties = f.audioProperties();
-
+      
       tracks->push_back(new Track(tag->title().to8Bit(), tag->artist().to8Bit(), tag->album().to8Bit(), m.path(), properties->lengthInSeconds()));
     }
   }
 }
 
 int main(int argc, char* argv[]) {
+  setlocale(LC_ALL, "es_ES.UTF-8");
+
   SDL_Init(SDL_INIT_AUDIO);
   Mix_Init(MIX_INIT_MP3);
   Mix_OpenAudio(22050, AUDIO_S16SYS, 2, 4096);
-  
-  Mix_Music* music;
 
   Track* currentTrack = NULL;
   std::vector<Track*> tracks;
@@ -159,7 +168,7 @@ int main(int argc, char* argv[]) {
   auxy /= 6;
 
   WINDOW* winTrackSel = newwin(5 * auxy, auxx, 1, 0);
-  WINDOW* winTrack = newwin(auxy, 0, 5 * auxy + 1, 0);
+  WINDOW* winTrack = newwin(auxy + 1, 0, 5 * auxy + 1, 0);
 
   char ch;
   while ((ch = getch()) != 27) {
@@ -171,10 +180,25 @@ int main(int argc, char* argv[]) {
         selectedOption--;
         break;
       case 10:
+        if (currentTrack != NULL) {
+          if (currentTrack == tracks[selectedOption]) break;
+          else {
+            currentTrack->stopTimer();
+            Mix_SetMusicPosition(0);
+          }
+        }
         currentTrack = tracks[selectedOption];
-        music = Mix_LoadMUS(currentTrack->path.c_str());
-        Mix_PlayMusic(music, 1);
+        currentTrack->loadMusic();
         currentTrack->startTimer();
+        break;
+      case 32:
+        if (currentTrack) currentTrack->toggle();
+        break;
+      case 5:
+        currentTrack->forward();
+        break;
+      case 4:
+        currentTrack->backwards();
         break;
     }
     if (selectedOption < 0) selectedOption = tracks.size() - 1;
@@ -185,7 +209,6 @@ int main(int argc, char* argv[]) {
     drawTitle();
   };
 
-  Mix_FreeMusic(music);
   SDL_Quit();
   
   endwin();
